@@ -186,6 +186,8 @@ log("[dkaplan] >>> OnStateChange of (SwatGUIController) "$self);
                 OpenMenu( "SwatGui.SwatMainMenu", "SwatMainMenu" );
             else
                 OpenEntryStack();
+				
+			SetHasClientReceivedLoadouts(false);
             break;
         case GAMESTATE_ClientTravel:
             if( oldState != GAMESTATE_None &&
@@ -1151,6 +1153,19 @@ function ScrollChatToEnd()
         if( ChatPanel[i].bVisible )
             ChatPanel[i].ScrollChatToEnd();
     }
+}
+
+function NotifyUpdatedLoadout(String loadOut )
+{
+	log(self$"::NotifyUpdatedLoadout");
+	if( MPLoadoutPanel != None )
+		MPLoadoutPanel.CheckUpdatedLoadout( loadOut );
+}
+
+function SetHasClientReceivedLoadouts(bool in)
+{
+	if( MPLoadoutPanel != None)
+		MPLoadoutPanel.SetHasReceivedLoadouts(in);
 }
 
 defaultproperties

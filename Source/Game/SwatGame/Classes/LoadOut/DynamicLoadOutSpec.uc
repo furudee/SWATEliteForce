@@ -2,8 +2,14 @@ class DynamicLoadOutSpec extends LoadOutValidationBase
     perObjectConfig
     Config(DynamicLoadout);
 
+import enum EEntryType from SwatStartPointBase;
+
 var public config int PrimaryWeaponAmmoCount;
 var public config int SecondaryWeaponAmmoCount;
+
+var public config bool bSpawn;
+var public config EEntryType Entrypoint;
+var public config string Editor;
 
 ////////////////////////////////////////////////////////////////////////////////
 simulated function int GetPrimaryAmmoCount() {

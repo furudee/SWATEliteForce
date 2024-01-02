@@ -315,6 +315,15 @@ replication
         ServerHandleViewportFire, ServerHandleViewportReload,
 		ServerDisableSpecialInteractions, ServerMPCommandIssued,
 		ServerDiscordTest, ServerDiscordTest2, ServerGiveItem;
+	
+	
+	reliable if(Role < ROLE_Authority)
+		ServerGetAIOfficerLoadout, ServerSetAIOfficerPocket, ServerSetAIOfficerMaterial,
+		ServerSetAIOfficerSkin, ServerSetAIOfficerEditor, ServerNotifyUpdatedLoadout, ServerSetAIOfficerSpawn, 
+		ServerSetAIOfficerEntrypoint, ServerSetAIOfficerAmmoCount;
+	reliable if (Role == ROLE_Authority)
+		ClientSetAIOfficerPocket, ClientSetAIOfficerMaterial, ClientSetAIOfficerSkin, ClientSetAIOfficerEditor,
+		ClientNotifyUpdatedLoadout, ClientSetAIOfficerSpawn, ClientSetAIOfficerEntrypoint, ClientSetAIOfficerAmmoCount;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6572,6 +6581,281 @@ simulated function RenderDebugInfo(Canvas Canvas)
     YP += 16;
     Canvas.SetPos(10, YP);
     Canvas.DrawText("GivenFlashbangs AvailableCount: " $ SwatPlayer(Pawn).GivenFlashbangs.GetAvailableCount());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// AI Officer loadouts for COOP												 //
+// Author: furudee															 //
+///////////////////////////////////////////////////////////////////////////////
+
+// this entire thing is scuffed
+simulated function GetAIOfficerLoadout( String loadOut ) 
+{
+	log(self$"::GetAIOfficerLoadout");
+	ServerGetAIOfficerLoadout(loadOut, self);
+}
+
+simulated function SetAIOfficerLoadout( String loadOut )
+{
+	local int i;
+	local DynamicLoadOutSpec DLOS;
+	
+	log(self$"::SetAIOfficerLoadout | loadout: "$loadOut);
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+
+	// loadout is saved by client in SwatMPLoadoutPanel so a local host doesn't need to set anything here
+	if(Level.NetMode != NM_ListenServer)
+	{
+		for( i = 0; i < Pocket.EnumCount; i++ )
+		{
+			ServerSetAIOfficerPocket(loadOut, Pocket(i), DLOS.LoadoutSpec[i]);
+		}
+			
+		for( i = 0; i < DLOS.MaterialPocket.EnumCount; i++ )
+		{
+			ServerSetAIOfficerMaterial(loadOut, Pocket(i), DLOS.MaterialSpec[i]);
+		}
+			
+		ServerSetAIOfficerSkin(loadOut, DLOS.CustomSkinSpec);
+		ServerSetAIOfficerEditor(loadOut, GetHumanReadableName());
+		ServerSetAIOfficerSpawn(loadOut, DLOS.bSpawn);
+		ServerSetAIOfficerEntrypoint(loadOut, DLOS.Entrypoint);	
+		ServerSetAIOfficerAmmoCount(loadOut, DLOS.PrimaryWeaponAmmoCount, DLOS.SecondaryWeaponAmmoCount);
+	}
+	
+	ServerNotifyUpdatedLoadout( loadOut );
+	DLOS.Destroy();
+}
+
+function ServerNotifyUpdatedLoadout( String loadOut )
+{
+	local Controller i;
+	local SwatGamePlayerController current;
+
+	// gets the updated loadout for every other client than local host
+	for(i = Level.ControllerList; i != None; i = i.NextController)
+	{
+		current = SwatGamePlayerController(i);
+		log(self$"::ServerNotifyUpdatedLoadout current: "$current$" self: "$current == self);
+		if(current != None && current != self)
+			current.GetAIOfficerLoadout( loadOut );
+	}
+}
+
+simulated function ClientNotifyUpdatedLoadout( String loadOut )
+{
+	log(self$"::ClientNotifyUpdatedLoadout");
+	SwatGUIControllerBase(Player.GUIController).NotifyUpdatedLoadout( loadOut );
+
+}
+
+// Spawn and walk the loadout, send each item to client, notify client of updated loadout
+function ServerGetAIOfficerLoadout( String loadOut, Controller Other )
+{
+	local DynamicLoadOutSpec DLOS;
+	local Controller i;
+	local int j;
+	local SwatGamePlayerController PC;
+	local String playerName;
+	
+	log(self$"::ServerGetAIOfficerLoadout | loadout: "$loadOut);
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	
+	PC = SwatGamePlayerController(Other);	
+	for( j = 0; j < Pocket.EnumCount; j++ )
+	{
+		PC.ClientSetAIOfficerPocket(loadOut, Pocket(j), DLOS.LoadoutSpec[j]);
+	}
+	
+	for( j = 0; j < DLOS.MaterialPocket.EnumCount; j++ )
+	{
+		PC.ClientSetAIOfficerMaterial(loadOut, Pocket(j), DLOS.MaterialSpec[j]);
+
+	}		
+	PC.ClientSetAIOfficerSkin(loadOut, DLOS.CustomSkinSpec);
+	PC.ClientSetAIOfficerEditor(loadOut, DLOS.Editor);
+	PC.ClientSetAIOfficerSpawn(loadOut, DLOS.bSpawn);
+	PC.ClientSetAIOfficerEntrypoint(loadOut, DLOS.Entrypoint);
+	PC.ClientSetAIOfficerAmmoCount(loadOut, DLOS.PrimaryWeaponAmmoCount, DLOS.SecondaryWeaponAmmoCount);
+	
+	PC.ClientNotifyUpdatedLoadout( loadOut );
+	
+	DLOS.Destroy();
+}
+
+function SetAIOfficerPocket(String loadOut, Pocket pocket, class<Actor> pocketItem)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerPocket | loadout: "$loadOut$ " | Pocket: "$pocket$" | pocketItem: "$pocketItem);
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.LoadoutSpec[pocket] != pocketItem)
+	{
+		DLOS.LoadoutSpec[pocket] = pocketItem;
+		DLOS.SaveConfig( loadOut );
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerMaterial(String loadOut, Pocket pocket, Material mat)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerMaterial | loadout: "$loadOut$ " | Pocket: "$pocket$" | Mat: "$mat);
+	
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.MaterialSpec[pocket] != mat)
+	{
+		DLOS.MaterialSpec[pocket] = mat;
+		DLOS.SaveConfig( loadOut );
+
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerSkin(String loadOut, String customSkin)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerSkin | loadout: "$loadOut$ " customSkin: "$customSkin);
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.CustomSkinSpec != customSkin)
+	{
+		DLOS.CustomSkinSpec = customSkin;
+		DLOS.SaveConfig( loadOut );
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerEditor(String loadOut, String playerName)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerEditor | loadout: "$loadOut$ " playerName: "$playerName);
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.Editor != playerName)
+	{
+		DLOS.Editor = playerName;
+		DLOS.SaveConfig( loadOut );
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerSpawn(String loadOut, bool bSpawn)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerSpawn | loadout: "$loadOut$ " bSpawn: "$bSpawn);
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.bSpawn != bSpawn)
+	{
+		DLOS.bSpawn = bSpawn;
+		DLOS.SaveConfig( loadOut );
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerEntrypoint(String loadOut, EEntryType Entrypoint)
+{
+	local DynamicLoadOutSpec DLOS;
+	log(self$"::SetAIOfficerEntrypoint | loadout: "$loadOut$ " Entrypoint: "$Entrypoint);
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.Entrypoint != Entrypoint)
+	{
+		DLOS.Entrypoint = Entrypoint;
+		DLOS.SaveConfig( loadOut );
+	}
+	DLOS.Destroy();
+}
+
+function SetAIOfficerAmmoCount(String loadOut, int primaryCount, int secondaryCount)
+{
+	local DynamicLoadOutSpec DLOS;
+
+	DLOS = Spawn( class'DynamicLoadOutSpec', None, name( loadOut ));
+	if(DLOS.PrimaryWeaponAmmoCount != primaryCount)
+	{
+		DLOS.PrimaryWeaponAmmoCount = primaryCount;
+		DLOS.SaveConfig( loadOut, , false );
+	}
+	if(DLOS.SecondaryWeaponAmmoCount != secondaryCount)
+	{
+		DLOS.SecondaryWeaponAmmoCount = secondaryCount;
+		DLOS.SaveConfig( loadOut, , false );
+	}
+	DLOS.FlushConfig();
+	DLOS.Destroy();
+}
+
+
+function ServerSetAIOfficerPocket(String loadOut, Pocket pocket, class<Actor> pocketItem)
+{
+	SetAIOfficerPocket(loadout, pocket, pocketItem);
+}
+
+function ServerSetAIOfficerMaterial(String loadOut, Pocket pocket, Material mat)
+{
+	SetAIOfficerMaterial(loadout, pocket, mat);
+}
+
+function ServerSetAIOfficerSkin(String loadOut, String customSkin)
+{
+	SetAIOfficerSkin(loadout, customSkin);
+}
+
+function ServerSetAIOfficerEditor(String loadOut, String playerName)
+{
+	SetAIOfficerEditor(loadout, playerName);
+}
+
+function ServerSetAIOfficerSpawn(String loadOut, bool bSpawn)
+{
+	SetAIOfficerSpawn(loadout, bSpawn);
+}
+
+function ServerSetAIOfficerEntrypoint(String loadOut, EEntryType Entrypoint)
+{
+	SetAIOfficerEntrypoint(loadout, Entrypoint);
+}
+
+function ServerSetAIOfficerAmmoCount(String loadOut, int primaryCount, int secondaryCount)
+{
+	SetAIOfficerAmmoCount(loadOut, primaryCount, secondaryCount);
+}
+
+simulated function ClientSetAIOfficerPocket(String loadOut, Pocket pocket, class<Actor> pocketItem)
+{
+	SetAIOfficerPocket(loadout, pocket, pocketItem);
+}
+
+simulated function ClientSetAIOfficerMaterial(String loadOut, Pocket pocket, Material mat)
+{
+	SetAIOfficerMaterial(loadout, pocket, mat);
+}
+
+simulated function ClientSetAIOfficerSkin(String loadOut, String customSkin)
+{
+	SetAIOfficerSkin(loadout, customSkin);
+}
+
+simulated function ClientSetAIOfficerEditor(String loadOut, String playerName)
+{
+	SetAIOfficerEditor(loadout, playerName);
+}
+
+simulated function ClientSetAIOfficerSpawn(String loadOut, bool bSpawn)
+{
+	SetAIOfficerSpawn(loadout, bSpawn);
+}
+
+simulated function ClientSetAIOfficerEntrypoint(String loadOut, EEntryType Entrypoint)
+{
+	SetAIOfficerEntrypoint(loadout, Entrypoint);
+}
+
+simulated function ClientSetAIOfficerAmmoCount(String loadOut, int primaryCount, int secondaryCount)
+{
+	SetAIOfficerAmmoCount(loadOut, primaryCount, secondaryCount);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
