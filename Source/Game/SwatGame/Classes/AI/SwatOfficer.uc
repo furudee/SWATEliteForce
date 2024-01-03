@@ -139,9 +139,14 @@ event PreBeginPlay()
 	InitLoadOut(OfficerLoadOutType);
 }
 
-event PostBeginPlay()
+simulated event PostBeginPlay()
 {
     Super.PostBeginPlay();
+	
+	if(Level.NetMode == NM_Client)
+	{
+		InitLoadOut(OfficerLoadOutType);
+	}
     // Notify the hive that our swat officer has been fully-constructed
     SwatAIRepository(Level.AIRepo).GetHive().NotifyOfficerConstructed(self);
 
@@ -555,7 +560,7 @@ simulated function        HandleReload();
 
 ///////////////////////////////////////////////////////////////////////////////
 
-function PlayTurnAwayAnimation()
+simulated function PlayTurnAwayAnimation()
 {
 	local name TurnAwayAnimation;
 
@@ -570,7 +575,7 @@ function PlayTurnAwayAnimation()
 //
 // Loadout
 
-private function InitLoadOut( String LoadOutName )
+simulated function InitLoadOut( String LoadOutName )
 {
     local DynamicLoadOutSpec LoadOutSpec;
     local CustomScenario CustomScen;
@@ -609,8 +614,10 @@ private function InitLoadOut( String LoadOutName )
         {
             LoadOutSpec = Spawn(class'DynamicLoadOutSpec', self, CustomScen.BlueTwoLoadOut);
         }
-	    else
+	    else if( Level.NetMode == NM_StandAlone )
     	    LoadOutSpec = Spawn(class'DynamicLoadOutSpec', self, name("Current"$LoadOutName));
+		else 
+			LoadOutSpec = Spawn(class'DynamicLoadOutSpec', self, name("CurrentMultiplayer"$LoadOutName));
     }
 	assert(LoadOutSpec != None);
 
@@ -623,7 +630,7 @@ private function InitLoadOut( String LoadOutName )
 // a. not all subclasses of the common base class will use this functionality.
 // b. the functionality will most likely diverge sometime down the road, possibly causing maintenance headaches
 // c. we don't have multiple inheritance
-private function ReceiveLoadOut()
+simulated function ReceiveLoadOut()
 {
 	assert(LoadOut != None);
 
@@ -726,13 +733,13 @@ function ClearFormation()
 // Animation
 
 // officers do not play the full body hit animations
-function bool ShouldPlayFullBodyHitAnimation()
+simulated function bool ShouldPlayFullBodyHitAnimation()
 {
 	return false;
 }
 
 // Only allow low-ready if the officer is not aiming at a staircase aim point
-protected function bool CanPawnUseLowReady()
+simulated protected function bool CanPawnUseLowReady()
 {
     return true;
 }
@@ -740,7 +747,7 @@ protected function bool CanPawnUseLowReady()
 simulated function EAnimationSet GetStandingInjuredAnimSet()    { return kAnimationSetOfficerInjuredStanding; }
 simulated function EAnimationSet GetCrouchingInjuredAnimSet()   { return kAnimationSetOfficerInjuredCrouching; }
 
-function EUpperBodyAnimBehavior GetMovementUpperBodyAimBehavior()
+simulated function EUpperBodyAnimBehavior GetMovementUpperBodyAimBehavior()
 {
 	// by default we use low ready when moving
 	return kUBAB_AimWeapon;
@@ -750,30 +757,30 @@ function EUpperBodyAnimBehavior GetMovementUpperBodyAimBehavior()
 //
 // Equipment
 
-function ThrownWeapon GetThrownWeapon(EquipmentSlot Slot)
+simulated function ThrownWeapon GetThrownWeapon(EquipmentSlot Slot)
 {
 	return ThrownWeapon(GetItemAtSlot(Slot));
 }
 
-function HandheldEquipment GetItemAtSlot(EquipmentSlot Slot)
+simulated function HandheldEquipment GetItemAtSlot(EquipmentSlot Slot)
 {
 	return LoadOut.GetItemAtSlot(Slot);
 }
 
-function RemoveGivenEquipment(HandheldEquipment Equipment)
+simulated function RemoveGivenEquipment(HandheldEquipment Equipment)
 {
     LoadOut.RemoveGivenEquipment(Equipment);
 }
 
 // overridden from ISwatAI
-function float GetTimeToWaitBeforeFiring()
+simulated function float GetTimeToWaitBeforeFiring()
 {
 	return RandRange(class'SwatAICharacterConfig'.default.OfficerMinTimeToWaitBeforeFiring,
 		class'SwatAICharacterConfig'.default.OfficerMaxTimeToWaitBeforeFiring);
 }
 
 // overridden from SwatAI
-protected function float GetLengthOfTimeToFireFullAuto()
+simulated protected function float GetLengthOfTimeToFireFullAuto()
 {
 	return RandRange(class'SwatAICharacterConfig'.default.OfficerMinTimeToFireFullAuto,
 		class'SwatAICharacterConfig'.default.OfficerMaxTimeToFireFullAuto);
@@ -803,17 +810,17 @@ function bool IsOfficerTwo()
     return self.IsA('OfficerRedTwo') || self.IsA('OfficerBlueTwo');
 }
 
-function FiredWeapon GetPrimaryWeapon()
+simulated function FiredWeapon GetPrimaryWeapon()
 {
     return LoadOut.GetPrimaryWeapon();
 }
 
-function FiredWeapon GetBackupWeapon()
+simulated function FiredWeapon GetBackupWeapon()
 {
     return LoadOut.GetBackupWeapon();
 }
 
-function bool HasUsableWeapon()
+simulated function bool HasUsableWeapon()
 {
 	return (((GetPrimaryWeapon() != None) && !GetPrimaryWeapon().IsEmpty()) ||
 		    ((GetBackupWeapon() != None) && !GetBackupWeapon().IsEmpty()));
@@ -878,7 +885,7 @@ latent function ReEquipFiredWeapon()
 }
 
 // will re-equip a fired weapon (primary or backup) if the active item is not the primary or backup weapon
-function InstantReEquipFiredWeapon()
+simulated function InstantReEquipFiredWeapon()
 {
 	local FiredWeapon PrimaryWeapon, BackupWeapon;
 
@@ -902,12 +909,12 @@ function InstantReEquipFiredWeapon()
 	}
 }
 
-function bool HasTaser()
+simulated function bool HasTaser()
 {
 	return HasA('Taser');
 }
 
-function bool HasLauncherWhichFires(EquipmentSlot Slot)
+simulated function bool HasLauncherWhichFires(EquipmentSlot Slot)
 {
 	return (GetLauncherWhichFires(Slot) != None);
 }
@@ -1474,4 +1481,7 @@ defaultproperties
 
 	bAlwaysUseWalkAimErrorWhenMoving=true
 	bAlwaysTestPathReachability=true
+	bAlwaysRelevant=true
+	bReplicateAnimations=true
+	bNoRepMesh=false
 }

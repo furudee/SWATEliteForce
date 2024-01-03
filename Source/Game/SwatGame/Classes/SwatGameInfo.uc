@@ -873,6 +873,11 @@ function OnMissionStarted()
     Level.TickSpecialEnabled = true;
 
     GameEvents.MissionStarted.Triggered();
+	
+	if( Level.IsCOOPServer )
+	{
+		SpawnOfficers();
+	}
 
 	// send a message that the level has started
 	dispatchMessage(new class'Gameplay.MessageLevelStart'(GetCustomScenario() != None && !GetCustomScenario().ForceScriptedSequences));
@@ -1830,6 +1835,40 @@ private function bool ShouldSpawnOfficerAtStart(SwatOfficerStart OfficerStart, E
 	return false;
 }
 
+private function SpawnOfficerMP(SwatOfficerStart OfficerStart)
+{
+	local SwatMPStartCluster Cluster;
+	local SwatMPStartPoint MPStartPoint;
+	local DynamicLoadOutSpec Loadout;
+	local int i;
+	
+	Loadout = Spawn( class'DynamicLoadOutSpec', None, name( "CurrentMultiplayer"$OfficerStart.GetOfficerClass().name$"LoadOut" ) );
+	if(Loadout.bSpawn && ( OfficerStart.EntryType == Loadout.Entrypoint || !(Repo.GuiConfig.CurrentMission.EntryOptionTitle.Length >= 2) ))
+	{
+		// failed encroaching check
+		if( !GameModeCOOP(GameMode).SpawnPointCanBeUsed(OfficerStart) )
+		{
+			// use MP spawnpoint
+			Cluster = GameModeCOOP(GameMode).GetMPStartCluster(OfficerStart.EntryType);
+			for(i = 0; i < Cluster.NumberOfStartPoints; i++)
+			{
+				MPStartPoint = Cluster.StartPoints[i];
+				if(GameModeCOOP(GameMode).SpawnPointCanBeUsed(MPStartPoint))
+				{
+					Spawn(OfficerStart.GetOfficerClass(), , , MPStartPoint.Location, MPStartPoint.Rotation);
+					break;
+				}
+			}
+		}
+		else
+		{
+			Spawn(OfficerStart.GetOfficerClass(), , , OfficerStart.Location, OfficerStart.Rotation);
+		}
+		NumSpawnedOfficers++;
+	}
+	Loadout.Destroy();
+}
+
 // Goes through all of the SwatOfficerStart points and tells it to spawn the officer
 private function SpawnOfficers()
 {
@@ -1854,6 +1893,12 @@ private function SpawnOfficers()
 			if(Iter.IsA('SwatOfficerStart'))
             {
                 OfficerStart = SwatOfficerStart(Iter);
+				
+				if(Level.NetMode != NM_StandAlone)
+				{
+					SpawnOfficerMP(OfficerStart);
+				}
+				
 				if (ShouldSpawnOfficerAtStart(OfficerStart, DesiredEntryType))
 				{
 		            log("  Will *Spawn* officer at "$OfficerStart$" with entry type "$GetEnum(EEntryType,DesiredEntryType));

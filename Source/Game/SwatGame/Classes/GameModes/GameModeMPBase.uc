@@ -396,7 +396,7 @@ function SwatMPStartPoint FindNetPlayerStart( Controller Player )
     }
 }
 
-private function bool SpawnPointCanBeUsed( Actor thePoint )
+function bool SpawnPointCanBeUsed( Actor thePoint )
 {
     local int j;
 
@@ -920,6 +920,11 @@ protected final function DestroyAllPawns()
     {
         P.Destroy();
     }
+}
+
+function SwatMPStartCluster GetMPStartCluster(int index)
+{
+	return CurrentStartCluster[index];
 }
 
 defaultproperties
