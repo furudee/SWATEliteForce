@@ -2798,6 +2798,11 @@ simulated function InitializeRemainingUpdateAttachmentLocationsCounter()
     RemainingUpdateAttachmentLocationsCounter = 2; // Ugh.
 }
 
+simulated function vector GetDoorWayLocation()
+{
+	return DoorWay.Location;
+}
+
 defaultproperties
 {
     //Note that DT_StaticMesh is used only for convenience in the editor;

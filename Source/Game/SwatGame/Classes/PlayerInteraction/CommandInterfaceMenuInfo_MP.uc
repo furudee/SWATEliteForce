@@ -16,6 +16,10 @@ function bool IsAvailable(LevelInfo Level, CommandInterface CI)
     local EMPMode MPMode;
     local SwatGamePlayerController Player;
 	local ServerSettings Settings;
+	
+	// fix infinite loop when spawning interface for dedicated server
+	if(Level.NetMode == NM_DedicatedServer)
+		return true;
 
 	Player = SwatGamePlayerController(Level.GetLocalPlayerController());
 

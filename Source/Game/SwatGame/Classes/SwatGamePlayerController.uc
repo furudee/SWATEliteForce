@@ -318,7 +318,7 @@ replication
 	
 	
 	reliable if(Role < ROLE_Authority)
-		ServerGetAIOfficerLoadout, ServerSetAIOfficerPocket, ServerSetAIOfficerMaterial,
+		ServerOrderOfficers, ServerGetAIOfficerLoadout, ServerSetAIOfficerPocket, ServerSetAIOfficerMaterial,
 		ServerSetAIOfficerSkin, ServerSetAIOfficerEditor, ServerNotifyUpdatedLoadout, ServerSetAIOfficerSpawn, 
 		ServerSetAIOfficerEntrypoint, ServerSetAIOfficerAmmoCount;
 	reliable if (Role == ROLE_Authority)
@@ -5459,7 +5459,8 @@ function ServerGiveCommand(
         string TargetID,            //unique ID of the target
         Vector TargetLocation,      //the location that the command refers to.
                                     //  Note: will not be PendingCommandTargetActor.Location, because the focus trace will be blocked before that location
-        eVoiceType VoiceType)
+        eVoiceType VoiceType,
+		name CommandTeam )
 {
     local SwatGamePlayerController PC;
     local Controller Controller;
@@ -5515,7 +5516,8 @@ function ServerGiveCommand(
                     TargetActor,
                     TargetID,
                     TargetLocation,
-                    VoiceType );
+                    VoiceType,
+					CommandTeam );
         }
     }
 }
@@ -5528,7 +5530,8 @@ simulated function ClientReceiveCommand(
         Actor TargetActor,
         string TargetID,
         Vector TargetLocation,
-        eVoiceType VoiceType )
+        eVoiceType VoiceType,
+		name CommandTeam )
 {
     GetCommandInterface().ReceiveCommandMP(
             CommandIndex,
@@ -5538,7 +5541,8 @@ simulated function ClientReceiveCommand(
             TargetActor,
             TargetID,
             TargetLocation,
-            VoiceType);
+            VoiceType,
+			CommandTeam );
 }
 
 //when a Officer dies, we want to check if any team has no officers.
@@ -5748,7 +5752,9 @@ exec function HoldCommand(bool bPressed)
 	local OfficerTeamInfo Team;
     local GraphicCommandInterface GCI;
 
-	if (Level.NetMode != NM_Standalone)
+	if (Level.NetMode != NM_Standalone 
+		// && !Level.IsPlayingCOOP
+		)
 		return;
 
 	Team = GetCommandInterface().CurrentCommandTeam;
@@ -6581,6 +6587,46 @@ simulated function RenderDebugInfo(Canvas Canvas)
     YP += 16;
     Canvas.SetPos(10, YP);
     Canvas.DrawText("GivenFlashbangs AvailableCount: " $ SwatPlayer(Pawn).GivenFlashbangs.GetAvailableCount());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+function ServerOrderOfficers(        
+		int CommandIndex,
+        Actor PCTargetActor,
+        Vector PCTargetLocation,
+		name CommandTeam,
+		vector PCOrigin,
+		Pawn CommandingPlayer,
+		bool bHoldCommand,
+		optional String actorUniqueID )
+{
+	if(Role == ROLE_Authority)
+	{
+		// create interface for dedicated host
+		if(GetCommandInterface() == None)
+			CurrentCommandInterface = Spawn(class'GraphicCommandInterface_MP');
+		
+		log(self$"::ServerOrderOfficers [PLAYER CONTROLLER] Command: "$CurrentCommandInterface.Commands[CommandIndex]$" --PCTargetActor:: "$PCTargetActor$" --PCTargetLocation:: "$PCTargetLocation$" --CommandingPlayer:: "$CommandingPlayer$" --bHoldCommand:: "$bHoldCommand$" --actorUniqueID:: "$actorUniqueID);
+
+		// send the command using hosts commandinterface
+		GetCommandInterface().SendCommandToOfficers(CommandIndex, CommandingPlayer, PCTargetActor, PCTargetLocation, CommandTeam, PCOrigin, bHoldCommand, actorUniqueID);
+	}
+}
+
+exec function CommandInterfaceNextGroupCOOP()
+{
+    local CommandInterface CCI, GCI;
+    //need to notify both because DefaultCommand style is managed by the GCI
+    CCI = CommandInterface(GetFocusInterface(Focus_ClassicCommand));
+    GCI = CommandInterface(GetFocusInterface(Focus_GraphicCommand));
+	if (Level.IsPlayingCOOP)
+	{
+		if (CCI != None)
+			CCI.NextTeam();
+		if (GCI != None)
+			GCI.NextTeam();
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

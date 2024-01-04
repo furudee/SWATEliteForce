@@ -215,13 +215,54 @@ simulated function GiveCommandMP()
 
 function StartCommand()
 {
+	local Actor PendingCommandTargetActor;
+	local Vector PendingCommandTargetLocation;
+	local name CommandTeam;
+	local Pawn Player;
+	
     if (SwatRepo(Level.GetRepo()).GuiConfig.SwatGameState != GAMESTATE_MidGame)
     {
         GotoState('');
         return;
     }
 
-    SendCommandToOfficers();
+	CommandTeam = PendingCommandTeam.class.name;
+	Player = Level.GetLocalPlayerController().Pawn;
+	PendingCommandTargetActor = GetPendingCommandTargetActor();
+	//note that GetPendingCommandTargetActor() returns None if the PendingCommand
+	//  isn't associated with any particular actor.
+	if (PendingCommandTargetActor != None)
+		PendingCommandTargetLocation = PendingCommandTargetActor.Location;
+	else    //no target actor
+		PendingCommandTargetLocation = GetLastFocusLocation();  //the point where the command interface focus trace was blocked
+		
+	if(Level.NetMode == NM_Standalone)
+	{
+		SendCommandToOfficers(
+			PendingCommand.Index, 
+			Level.GetLocalPlayerController().Pawn, 
+			PendingCommandTargetActor, 
+			PendingCommandTargetLocation, 
+			CommandTeam, 
+			PendingCommandOrigin, 
+			PendingCommandHold);
+	}
+	else
+	{
+		PlayerController.ServerOrderOfficers(
+			PendingCommand.Index,
+			PendingCommandTargetActor,
+			PendingCommandTargetLocation, 
+			CommandTeam,
+			PendingCommandOrigin,
+			Player,
+			PendingCommandHold,
+			PendingCommandTargetActor.UniqueID() );
+			
+		log("PendingCommandTargetActor.UniqueID() "$PendingCommandTargetActor.UniqueID());
+
+		log(self$":: -> [CLIENT] ServerOrderOfficers -> PendingCommand: "$PendingCommand$" PendingCommandTargetActor: "$PendingCommandTargetActor$" PendingCommandTargetLocation: "$PendingCommandTargetLocation$" CommandTeam: "$CommandTeam$" PendingCommandOrigin: "$PendingCommandOrigin$" Player: "$Player$" PendingCommandHold: "$PendingCommandHold);
+	}
 }
 
 // override - this interface just re-uses the current command interface's foci

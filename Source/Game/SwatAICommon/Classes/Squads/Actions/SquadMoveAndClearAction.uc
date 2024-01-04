@@ -416,6 +416,12 @@ function NotifyGrenadeReadyToThrow()
 function NotifyRegisteredOnProjectile(SwatGrenadeProjectile Grenade)
 {
 	Projectile = Grenade;
+	// epic hack to prevent AI officers throwing grenades into walls
+	log("resource.pawn(): "$resource.pawn());
+	if(resource.pawn().Level.NetMode != NM_StandAlone && resource.pawn().Level.NetMode != NM_Client)
+	{
+		Projectile.SetLocation(ISwatDoor(TargetDoor).GetDoorWayLocation());
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

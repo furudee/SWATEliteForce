@@ -60,3 +60,4 @@ function array<Actor> GetDoorModels();
 function bool IsActivelyTrapped();
 function Actor GetTrapOnDoor();
 function bool CanBeOpenedBySuspectsAndCivilians();
+function vector GetDoorWayLocation();
